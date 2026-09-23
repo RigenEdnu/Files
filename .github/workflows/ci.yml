@@ -10,6 +10,7 @@
 name: Files CI
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -44,8 +45,6 @@ jobs:
 
   check-formatting:
 
-    if: github.repository_owner == 'files-community'
-
     runs-on: windows-2025-vs2026
 
     steps:
@@ -79,8 +78,6 @@ jobs:
       run: exit 1
 
   build:
-
-    if: github.repository_owner == 'files-community'
 
     runs-on: windows-2025-vs2026
     strategy:
@@ -219,8 +216,6 @@ jobs:
 
   report-bundle-size:
 
-    if: github.repository_owner == 'files-community'
-
     needs: [build]
     runs-on: windows-2025-vs2026
 
@@ -256,7 +251,7 @@ jobs:
 
   test:
 
-    if: github.repository_owner == 'files-community' && always()
+    if: always()
 
     needs: [build]
     runs-on: windows-2025-vs2026
