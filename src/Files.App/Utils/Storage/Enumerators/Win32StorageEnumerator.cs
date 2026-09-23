@@ -191,16 +191,17 @@ namespace Files.App.Utils.Storage
 			}
 
 			var itemPath = Path.Combine(pathRoot, findData.cFileName);
+			string itemName = findData.cFileName;
 
-			string itemName = await fileListCache.GetDisplayName(itemPath, cancellationToken);
-			if (string.IsNullOrEmpty(itemName))
+			// Check fast memory cache first; only query disk/desktop.ini if attributes indicate customized folder
+			const FileAttributes desktopIniFlags = FileAttributes.ReadOnly | FileAttributes.System;
+			var attributes = (FileAttributes)findData.dwFileAttributes;
+			if ((attributes & desktopIniFlags) != 0 && (attributes & FileAttributes.ReparsePoint) == 0)
 			{
-				itemName = findData.cFileName;
-
-				// The shell only reads desktop.ini for folders marked ReadOnly or System, and keeps the raw name for junctions
-				const FileAttributes desktopIniFlags = FileAttributes.ReadOnly | FileAttributes.System;
-				var attributes = (FileAttributes)findData.dwFileAttributes;
-				if ((attributes & desktopIniFlags) != 0 && (attributes & FileAttributes.ReparsePoint) == 0)
+				var cachedName = await fileListCache.GetDisplayName(itemPath, cancellationToken);
+				if (!string.IsNullOrEmpty(cachedName))
+					itemName = cachedName;
+				else
 					itemName = Win32Helper.GetLocalizedName(itemPath) ?? itemName;
 			}
 
