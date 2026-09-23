@@ -406,12 +406,56 @@ namespace Files.App.ViewModels.Settings
 
 		private async Task ClearThumbnailCacheAsync()
 		{
-			//TODO: Clear thumbnail cache.
+			IsClearCacheButtonEnabled = false;
+
+			var iconCacheService = Ioc.Default.GetService<IIconCacheService>();
+			iconCacheService?.Clear();
+
+			await Task.Run(() =>
+			{
+				try
+				{
+					var cachePath = ApplicationData.Current.LocalCacheFolder.Path;
+					if (Directory.Exists(cachePath))
+					{
+						var dirInfo = new DirectoryInfo(cachePath);
+						foreach (var file in dirInfo.EnumerateFiles())
+						{
+							SafetyExtensions.IgnoreExceptions(() => file.Delete(), App.Logger);
+						}
+					}
+				}
+				catch (Exception ex)
+				{
+					App.Logger?.LogWarning(ex, "Failed to clear thumbnail cache directory");
+				}
+			});
+
+			await UpdateCacheSizeAsync();
 		}
 
 		private async Task UpdateCacheSizeAsync()
 		{
-			//TODO: Get thumbnail cache size and update CacheSizeText and IsClearCacheButtonEnabled accordingly.
+			long totalSize = await Task.Run(() =>
+			{
+				try
+				{
+					var cachePath = ApplicationData.Current.LocalCacheFolder.Path;
+					if (!Directory.Exists(cachePath))
+						return 0L;
+
+					var dirInfo = new DirectoryInfo(cachePath);
+					return dirInfo.EnumerateFiles("*", SearchOption.AllDirectories)
+						.Sum(file => file.Length);
+				}
+				catch
+				{
+					return 0L;
+				}
+			});
+
+			CacheSizeText = totalSize.ToSizeString();
+			IsClearCacheButtonEnabled = totalSize > 0;
 		}
 
 		public async Task OpenFilesOnWindowsStartupAsync()

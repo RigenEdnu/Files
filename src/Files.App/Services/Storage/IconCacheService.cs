@@ -13,8 +13,25 @@ namespace Files.App.Services
 		// Dummy path to generate generic icons for folders, executables, and shortcuts.
 		private static readonly string _dummyPath = Path.Combine(Path.GetPathRoot(Environment.SystemDirectory)!, "x46696c6573");
 
+		private const int MaxCacheEntries = 1024;
+
 		private readonly ConcurrentDictionary<string, byte[]?> _cache = new();
 		private readonly ConcurrentDictionary<string, BitmapImage> _imageCache = new();
+
+		private static void EnsureCapacity<TKey, TValue>(ConcurrentDictionary<TKey, TValue> dict, int limit) where TKey : notnull
+		{
+			if (dict.Count >= limit)
+			{
+				// ponytail: bulk eviction by removing the first batch of keys to prevent unbounded memory growth
+				int removeCount = limit / 4;
+				foreach (var key in dict.Keys)
+				{
+					if (removeCount-- <= 0)
+						break;
+					dict.TryRemove(key, out _);
+				}
+			}
+		}
 
 		public async Task<byte[]?> GetIconAsync(string? itemPath, string? extension, bool isFolder, uint size)
 		{
@@ -35,6 +52,7 @@ namespace Files.App.Services
 				isFolder,
 				IconOptions.ReturnIconOnly);
 
+			EnsureCapacity(_cache, MaxCacheEntries);
 			_cache.TryAdd(key, icon);
 			return icon;
 		}
@@ -55,7 +73,10 @@ namespace Files.App.Services
 
 			var image = await data.ToBitmapAsync();
 			if (image is not null)
+			{
+				EnsureCapacity(_imageCache, MaxCacheEntries);
 				_imageCache.TryAdd(key, image);
+			}
 
 			return image;
 		}
