@@ -910,12 +910,13 @@ namespace Files.App.ViewModels
 			CloseWatcher();
 			CancelNetworkAvailabilityUpdate();
 			IsNetworkDiscoveryInfoBarOpen = false;
-			if (IsLoadingItems)
-			{
-				IsLoadingCancelled = true;
-				addFilesCTS.Cancel();
-				addFilesCTS = new CancellationTokenSource();
-			}
+
+			// Always cancel pending enumeration immediately so previous folder read drops fast
+			IsLoadingCancelled = true;
+			addFilesCTS.Cancel();
+			addFilesCTS.Dispose();
+			addFilesCTS = new CancellationTokenSource();
+
 			CancelExtendedPropertiesLoading();
 			foreach (var key in thumbnailRetryDebounce.Keys)
 			{
@@ -2105,12 +2106,17 @@ namespace Files.App.ViewModels
 			if (string.IsNullOrEmpty(path))
 				return;
 
+			// Cancel any previously queued navigation requests immediately so they fail fast
+			semaphoreCTS.Cancel();
+			semaphoreCTS.Dispose();
+			var currentNavigationCTS = new CancellationTokenSource();
+			semaphoreCTS = currentNavigationCTS;
+
 			try
 			{
 				// Only one instance at a time should access this function
 				// Wait here until the previous one has ended
-				// If we're waiting and a new update request comes through simply drop this instance
-				await enumFolderSemaphore.WaitAsync(semaphoreCTS.Token);
+				await enumFolderSemaphore.WaitAsync(currentNavigationCTS.Token);
 			}
 			catch (OperationCanceledException)
 			{
@@ -2119,10 +2125,6 @@ namespace Files.App.ViewModels
 
 			try
 			{
-				// Drop all the other waiting instances
-				semaphoreCTS.Cancel();
-				semaphoreCTS = new CancellationTokenSource();
-
 				IsLoadingItems = true;
 
 				filesAndFolders.Clear();
